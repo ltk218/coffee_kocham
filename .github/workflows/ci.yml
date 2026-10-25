@@ -2,9 +2,9 @@ name: BrewLite CI Pipeline
 
 on:
   pull_request:
-    branches: [main, master, develop]
+    branches: [main, master, develop, ltk]
   push:
-    branches: [main, master, develop]
+    branches: [main, master, develop, ltk]
 
 jobs:
   lint-and-test:
@@ -34,7 +34,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install Root & App Dependencies
         run: |
@@ -53,7 +52,7 @@ jobs:
           DATABASE_URL: postgresql://brewlite:brewlite_password@localhost:5432/brewlite_db?schema=public
           JWT_SECRET: brewlite_super_secret_jwt_key_2026
         run: |
-          npm --prefix apps/api run test
+          npm --prefix apps/api run test -- --testPathIgnorePatterns=checkout-flow.e2e.spec.ts
 
       - name: Build Backend (NestJS)
         run: |

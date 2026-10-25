@@ -10,7 +10,6 @@ import {
   LogOut,
   LogIn,
   ShieldCheck,
-  ArrowRight,
   Menu,
   X,
   Phone,
@@ -22,7 +21,6 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useCartStore } from '../../store/useCartStore';
-import { formatVND } from '../../lib/api';
 
 const MAIN_NAV_LINKS = [
   {
@@ -61,9 +59,7 @@ export default function UserLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, token, logout, refreshProfile } = useAuthStore();
-  const items = useCartStore((state) => state.items);
   const totalCount = useCartStore((state) => state.getTotalCount());
-  const totalAmount = useCartStore((state) => state.getTotal());
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
   useEffect(() => {
@@ -71,9 +67,6 @@ export default function UserLayout({
       refreshProfile();
     }
   }, [token, refreshProfile]);
-
-  const showFloatingCart =
-    items.length > 0 && pathname !== '/cart' && pathname !== '/checkout';
 
   const isCartActive =
     pathname.startsWith('/cart') || pathname.startsWith('/checkout');
@@ -259,7 +252,7 @@ export default function UserLayout({
         )}
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-16">
         {children}
       </main>
 
@@ -392,35 +385,6 @@ export default function UserLayout({
           </div>
         </div>
       </footer>
-
-      {showFloatingCart && (
-        <div className="fixed bottom-4 inset-x-0 z-40 px-4 pointer-events-none">
-          <div className="max-w-3xl mx-auto pointer-events-auto">
-            <Link
-              href="/cart"
-              className="flex items-center justify-between gap-4 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-[#3E2723] to-[#2C1810] text-white shadow-xl hover:from-[#2C1810] hover:to-[#3E2723] transition-all border border-amber-400/30"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-400 text-[#2C1810] flex items-center justify-center font-extrabold text-sm tabular-nums">
-                  {totalCount}
-                </div>
-                <div>
-                  <p className="text-sm font-bold leading-tight text-amber-100">
-                    Giỏ hàng đang có {totalCount} món
-                  </p>
-                  <p className="text-xs text-[#D7CCC8]">
-                    Nhấn để dùng điểm thưởng, áp mã ưu đãi và thanh toán nhanh
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 font-extrabold text-sm sm:text-base text-amber-300 tabular-nums">
-                <span>{formatVND(totalAmount)}</span>
-                <ArrowRight className="w-4 h-4" />
-              </div>
-            </Link>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

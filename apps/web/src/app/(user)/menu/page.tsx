@@ -43,13 +43,23 @@ function MenuCatalogContent() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Draft states (chỉ cập nhật trên khung chọn bên trái, chưa lọc ngay)
+  const [draftSearchQuery, setDraftSearchQuery] = useState<string>('');
+  const [draftSortBy, setDraftSortBy] = useState<SortOption>('POPULAR');
+  const [draftMinPrice, setDraftMinPrice] = useState<number>(MIN_PRICE_LIMIT);
+  const [draftMaxPrice, setDraftMaxPrice] = useState<number>(MAX_PRICE_LIMIT);
+  const [draftOnlyInStock, setDraftOnlyInStock] = useState<boolean>(false);
+
+  // Applied states (chỉ áp dụng khi bấm nút "Lọc")
   const [selectedCategory, setSelectedCategory] =
     useState<string>(initialCategory);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [sortBy, setSortBy] = useState<SortOption>('POPULAR');
-  const [minPrice, setMinPrice] = useState<number>(MIN_PRICE_LIMIT);
-  const [maxPrice, setMaxPrice] = useState<number>(MAX_PRICE_LIMIT);
-  const [onlyInStock, setOnlyInStock] = useState<boolean>(false);
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState<string>('');
+  const [appliedSortBy, setAppliedSortBy] = useState<SortOption>('POPULAR');
+  const [appliedMinPrice, setAppliedMinPrice] =
+    useState<number>(MIN_PRICE_LIMIT);
+  const [appliedMaxPrice, setAppliedMaxPrice] =
+    useState<number>(MAX_PRICE_LIMIT);
+  const [appliedOnlyInStock, setAppliedOnlyInStock] = useState<boolean>(false);
 
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -79,41 +89,40 @@ function MenuCatalogContent() {
 
   useEffect(() => {
     const catParam = searchParams.get('category');
-    if (catParam) {
-      setSelectedCategory(catParam);
-      setCurrentPage(1);
-    }
+    setSelectedCategory(catParam || 'Tất cả');
+    setCurrentPage(1);
   }, [searchParams]);
 
-  const categories = useMemo(() => {
-    const unique = Array.from(new Set(products.map((p) => p.category)));
-    return ['Tất cả', ...unique];
-  }, [products]);
+  const draftLowBound = Math.min(draftMinPrice, draftMaxPrice);
+  const draftHighBound = Math.max(draftMinPrice, draftMaxPrice);
 
-  const lowBound = Math.min(minPrice, maxPrice);
-  const highBound = Math.max(minPrice, maxPrice);
+  const appliedLowBound = Math.min(appliedMinPrice, appliedMaxPrice);
+  const appliedHighBound = Math.max(appliedMinPrice, appliedMaxPrice);
 
   const filteredAndSortedProducts = useMemo(() => {
     const filtered = products.filter((p) => {
       const matchesCat =
         selectedCategory === 'Tất cả' || p.category === selectedCategory;
-      const q = searchQuery.trim().toLowerCase();
+      const q = appliedSearchQuery.trim().toLowerCase();
       const matchesSearch =
         !q ||
         p.name.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q) ||
         p.category.toLowerCase().includes(q);
 
-      const matchesPrice = p.price >= lowBound && p.price <= highBound;
-      const matchesStock = onlyInStock ? p.isAvailable && p.stock > 0 : true;
+      const matchesPrice =
+        p.price >= appliedLowBound && p.price <= appliedHighBound;
+      const matchesStock = appliedOnlyInStock
+        ? p.isAvailable && p.stock > 0
+        : true;
 
       return matchesCat && matchesSearch && matchesPrice && matchesStock;
     });
 
     return [...filtered].sort((a, b) => {
-      if (sortBy === 'PRICE_ASC') return a.price - b.price;
-      if (sortBy === 'PRICE_DESC') return b.price - a.price;
-      if (sortBy === 'NAME_ASC') return a.name.localeCompare(b.name, 'vi');
+      if (appliedSortBy === 'PRICE_ASC') return a.price - b.price;
+      if (appliedSortBy === 'PRICE_DESC') return b.price - a.price;
+      if (appliedSortBy === 'NAME_ASC') return a.name.localeCompare(b.name, 'vi');
 
       const idxA = POPULAR_ORDER.indexOf(a.name);
       const idxB = POPULAR_ORDER.indexOf(b.name);
@@ -124,11 +133,11 @@ function MenuCatalogContent() {
   }, [
     products,
     selectedCategory,
-    searchQuery,
-    lowBound,
-    highBound,
-    onlyInStock,
-    sortBy,
+    appliedSearchQuery,
+    appliedLowBound,
+    appliedHighBound,
+    appliedOnlyInStock,
+    appliedSortBy,
   ]);
 
   const totalItems = filteredAndSortedProducts.length;
@@ -140,13 +149,28 @@ function MenuCatalogContent() {
     return filteredAndSortedProducts.slice(start, start + PAGE_SIZE);
   }, [filteredAndSortedProducts, safePage]);
 
+  const handleApplyFilters = () => {
+    setAppliedSearchQuery(draftSearchQuery);
+    setAppliedSortBy(draftSortBy);
+    setAppliedMinPrice(draftLowBound);
+    setAppliedMaxPrice(draftHighBound);
+    setAppliedOnlyInStock(draftOnlyInStock);
+    setCurrentPage(1);
+  };
+
   const handleResetFilters = () => {
     setSelectedCategory('Tất cả');
-    setSearchQuery('');
-    setSortBy('POPULAR');
-    setMinPrice(MIN_PRICE_LIMIT);
-    setMaxPrice(MAX_PRICE_LIMIT);
-    setOnlyInStock(false);
+    setDraftSearchQuery('');
+    setDraftSortBy('POPULAR');
+    setDraftMinPrice(MIN_PRICE_LIMIT);
+    setDraftMaxPrice(MAX_PRICE_LIMIT);
+    setDraftOnlyInStock(false);
+
+    setAppliedSearchQuery('');
+    setAppliedSortBy('POPULAR');
+    setAppliedMinPrice(MIN_PRICE_LIMIT);
+    setAppliedMaxPrice(MAX_PRICE_LIMIT);
+    setAppliedOnlyInStock(false);
     setCurrentPage(1);
   };
 
@@ -168,11 +192,11 @@ function MenuCatalogContent() {
 
   const leftPercent = Math.min(
     100,
-    Math.max(0, (lowBound / MAX_PRICE_LIMIT) * 100),
+    Math.max(0, (draftLowBound / MAX_PRICE_LIMIT) * 100),
   );
   const rightPercent = Math.min(
     100,
-    Math.max(0, 100 - (highBound / MAX_PRICE_LIMIT) * 100),
+    Math.max(0, 100 - (draftHighBound / MAX_PRICE_LIMIT) * 100),
   );
 
   return (
@@ -193,8 +217,8 @@ function MenuCatalogContent() {
             Tất Cả Sản Phẩm & Thức Uống Tại Quầy
           </h1>
           <p className="text-xs sm:text-sm text-[#D7CCC8]">
-            Sử dụng bộ lọc bên trái để tìm nhanh theo danh mục, mức giá hoặc
-            sắp xếp theo độ phổ biến.
+            Sử dụng bộ lọc bên trái để tìm nhanh theo mức giá hoặc sắp xếp theo
+            độ phổ biến.
           </p>
         </div>
       </div>
@@ -224,10 +248,12 @@ function MenuCatalogContent() {
               <Search className="w-4 h-4 text-[#8D6E63] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
+                value={draftSearchQuery}
+                onChange={(e) => setDraftSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleApplyFilters();
+                  }
                 }}
                 placeholder="Cà phê sữa, matcha..."
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-xs sm:text-sm text-[#2C1810] focus:outline-none focus:border-[#3E2723]"
@@ -250,12 +276,9 @@ function MenuCatalogContent() {
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => {
-                    setSortBy(item.key as SortOption);
-                    setCurrentPage(1);
-                  }}
+                  onClick={() => setDraftSortBy(item.key as SortOption)}
                   className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                    sortBy === item.key
+                    draftSortBy === item.key
                       ? 'bg-[#3E2723] text-white shadow-sm'
                       : 'bg-[#FDFBF7] text-[#5D4037] border border-[#E6DCD2] hover:bg-[#F7F2EB]'
                   }`}
@@ -266,47 +289,6 @@ function MenuCatalogContent() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-xs font-extrabold uppercase tracking-wider text-[#5D4037]">
-              Danh mục thức uống
-            </label>
-            <div className="space-y-1.5">
-              {categories.map((cat) => {
-                const active = selectedCategory === cat;
-                const count =
-                  cat === 'Tất cả'
-                    ? products.length
-                    : products.filter((p) => p.category === cat).length;
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCategory(cat);
-                      setCurrentPage(1);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                      active
-                        ? 'bg-[#3E2723] text-white shadow-sm'
-                        : 'bg-[#FDFBF7] text-[#5D4037] border border-[#E6DCD2] hover:bg-[#F7F2EB]'
-                    }`}
-                  >
-                    <span className="truncate">{cat}</span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded-full text-[10px] tabular-nums ${
-                        active
-                          ? 'bg-amber-400 text-[#2C1810]'
-                          : 'bg-white text-[#795548]'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-extrabold uppercase tracking-wider text-[#5D4037] flex items-center gap-1.5">
@@ -314,7 +296,7 @@ function MenuCatalogContent() {
                 <span>Khoảng giá</span>
               </label>
               <span className="text-[11px] font-bold text-[#B45309] tabular-nums">
-                {formatVND(lowBound)} – {formatVND(highBound)}
+                {formatVND(draftLowBound)} – {formatVND(draftHighBound)}
               </span>
             </div>
 
@@ -334,15 +316,14 @@ function MenuCatalogContent() {
                 min={MIN_PRICE_LIMIT}
                 max={MAX_PRICE_LIMIT}
                 step={1000}
-                value={minPrice}
+                value={draftMinPrice}
                 aria-label="Giá tối thiểu"
                 onChange={(e) => {
-                  const val = Math.min(Number(e.target.value), maxPrice);
-                  setMinPrice(val);
-                  setCurrentPage(1);
+                  const val = Math.min(Number(e.target.value), draftMaxPrice);
+                  setDraftMinPrice(val);
                 }}
                 className={`absolute inset-0 w-full h-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#B45309] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#B45309] [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer ${
-                  minPrice > MAX_PRICE_LIMIT - 10000 ? 'z-30' : 'z-20'
+                  draftMinPrice > MAX_PRICE_LIMIT - 10000 ? 'z-30' : 'z-20'
                 }`}
               />
 
@@ -351,12 +332,11 @@ function MenuCatalogContent() {
                 min={MIN_PRICE_LIMIT}
                 max={MAX_PRICE_LIMIT}
                 step={1000}
-                value={maxPrice}
+                value={draftMaxPrice}
                 aria-label="Giá tối đa"
                 onChange={(e) => {
-                  const val = Math.max(Number(e.target.value), minPrice);
-                  setMaxPrice(val);
-                  setCurrentPage(1);
+                  const val = Math.max(Number(e.target.value), draftMinPrice);
+                  setDraftMaxPrice(val);
                 }}
                 className="absolute inset-0 w-full h-full z-20 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#B45309] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#B45309] [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
               />
@@ -372,18 +352,17 @@ function MenuCatalogContent() {
                   min={MIN_PRICE_LIMIT}
                   max={MAX_PRICE_LIMIT}
                   step={1000}
-                  value={minPrice}
+                  value={draftMinPrice}
                   onChange={(e) => {
                     const raw = Number(e.target.value);
                     const val = Number.isNaN(raw)
                       ? 0
                       : Math.max(MIN_PRICE_LIMIT, Math.min(MAX_PRICE_LIMIT, raw));
-                    setMinPrice(val);
-                    setCurrentPage(1);
+                    setDraftMinPrice(val);
                   }}
                   onBlur={() => {
-                    if (minPrice > maxPrice) {
-                      setMinPrice(maxPrice);
+                    if (draftMinPrice > draftMaxPrice) {
+                      setDraftMinPrice(draftMaxPrice);
                     }
                   }}
                   className="w-full px-2.5 py-1.5 rounded-lg bg-[#FDFBF7] border border-[#E6DCD2] text-xs font-bold text-[#2C1810] tabular-nums focus:outline-none focus:border-[#B45309]"
@@ -399,18 +378,17 @@ function MenuCatalogContent() {
                   min={MIN_PRICE_LIMIT}
                   max={MAX_PRICE_LIMIT}
                   step={1000}
-                  value={maxPrice}
+                  value={draftMaxPrice}
                   onChange={(e) => {
                     const raw = Number(e.target.value);
                     const val = Number.isNaN(raw)
                       ? 0
                       : Math.max(MIN_PRICE_LIMIT, Math.min(MAX_PRICE_LIMIT, raw));
-                    setMaxPrice(val);
-                    setCurrentPage(1);
+                    setDraftMaxPrice(val);
                   }}
                   onBlur={() => {
-                    if (maxPrice < minPrice) {
-                      setMaxPrice(minPrice);
+                    if (draftMaxPrice < draftMinPrice) {
+                      setDraftMaxPrice(draftMinPrice);
                     }
                   }}
                   className="w-full px-2.5 py-1.5 rounded-lg bg-[#FDFBF7] border border-[#E6DCD2] text-xs font-bold text-[#2C1810] tabular-nums focus:outline-none focus:border-[#B45309]"
@@ -426,25 +404,29 @@ function MenuCatalogContent() {
               </span>
               <input
                 type="checkbox"
-                checked={onlyInStock}
-                onChange={(e) => {
-                  setOnlyInStock(e.target.checked);
-                  setCurrentPage(1);
-                }}
+                checked={draftOnlyInStock}
+                onChange={(e) => setDraftOnlyInStock(e.target.checked)}
                 className="w-4 h-4 accent-[#3E2723] rounded"
               />
             </label>
           </div>
+
+          <button
+            type="button"
+            onClick={handleApplyFilters}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#3E2723] text-white text-xs sm:text-sm font-bold hover:bg-[#2C1810] transition-colors shadow-sm"
+          >
+            <SlidersHorizontal className="w-4 h-4 text-amber-300" />
+            <span>Lọc sản phẩm</span>
+          </button>
         </aside>
 
-        <div className="lg:col-span-9 space-y-6">
-          <div className="bg-white border border-[#E6DCD2] rounded-2xl px-5 py-3.5 shadow-sm flex items-center justify-between">
-            <p className="text-xs sm:text-sm font-bold text-[#2C1810]">
-              Tìm thấy{' '}
-              <span className="text-[#B45309] tabular-nums">{totalItems}</span>{' '}
-              thức uống phù hợp
-            </p>
-          </div>
+        <div className="lg:col-span-9 space-y-5">
+          <p className="text-xs sm:text-sm font-bold text-[#2C1810] px-1">
+            Tìm thấy{' '}
+            <span className="text-[#B45309] tabular-nums">{totalItems}</span>{' '}
+            thức uống phù hợp
+          </p>
 
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -499,13 +481,9 @@ function MenuCatalogContent() {
 
               <nav
                 aria-label="Điều hướng phân trang sản phẩm"
-                className="bg-white border border-[#E6DCD2] rounded-2xl px-5 py-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4"
+                className="bg-white border border-[#E6DCD2] rounded-2xl px-5 py-4 shadow-sm flex items-center justify-center"
               >
-                <p className="text-sm font-extrabold text-[#795548] tabular-nums">
-                  <span className="text-[#2C1810]">{safePage}</span> / {totalPages}
-                </p>
-
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center justify-center gap-1.5">
                   <button
                     type="button"
                     disabled={safePage <= 1}

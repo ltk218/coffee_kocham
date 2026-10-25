@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Receipt,
   Store,
+  X,
 } from 'lucide-react';
 import {
   api,
@@ -25,9 +26,12 @@ import { OrderStatusBadge } from '../../../../components/OrderStatusBadge';
 import { useAuthStore } from '../../../../store/useAuthStore';
 import { useCartStore } from '../../../../store/useCartStore';
 
+const TOAST_DURATION_MS = 4500;
+
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, token, hydrated, refreshProfile } = useAuthStore();
   const clearCart = useCartStore((state) => state.clearCart);
 
@@ -35,6 +39,14 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [retryingPayment, setRetryingPayment] = useState<boolean>(false);
+
+  const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
+  const [toastProgress, setToastProgress] = useState<number>(100);
+
+  const triggerPaymentSuccessToast = () => {
+    setShowSuccessToast(true);
+    setToastProgress(100);
+  };
 
   const fetchOrder = async () => {
     if (!token || !params?.id) return;
@@ -62,6 +74,32 @@ export default function OrderDetailPage() {
     }
   }, [hydrated, token, params?.id]);
 
+  useEffect(() => {
+    if (searchParams?.get('paid') === '1') {
+      triggerPaymentSuccessToast();
+      if (params?.id) {
+        router.replace(`/orders/${params.id}`, { scroll: false });
+      }
+    }
+  }, [searchParams, params?.id, router]);
+
+  useEffect(() => {
+    if (!showSuccessToast) return;
+
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, 100 - (elapsed / TOAST_DURATION_MS) * 100);
+      setToastProgress(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        setShowSuccessToast(false);
+      }
+    }, 30);
+
+    return () => clearInterval(interval);
+  }, [showSuccessToast]);
+
   const handleRetryPayment = async () => {
     if (!token || !order) return;
     setRetryingPayment(true);
@@ -76,6 +114,9 @@ export default function OrderDetailPage() {
       setOrder(res.order);
       clearCart();
       await refreshProfile();
+      if (res.payment.status === 'SUCCESS' || res.order.status === 'PAID') {
+        triggerPaymentSuccessToast();
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Thanh toán lại không thành công',
@@ -127,6 +168,44 @@ export default function OrderDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      {showSuccessToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-24 right-4 z-50 w-80 sm:w-96 overflow-hidden rounded-2xl bg-[#2C1810] text-white shadow-2xl border border-emerald-400/40"
+        >
+          <div className="p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-extrabold text-emerald-300">
+                Thanh toán thành công!
+              </p>
+              <p className="text-xs text-[#E6DCD2] mt-0.5 leading-relaxed">
+                Đơn hàng{' '}
+                <strong className="text-amber-300">{order.orderCode}</strong> đã
+                được chuyển tới quầy Barista pha chế.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSuccessToast(false)}
+              className="p-1 rounded-lg text-[#D7CCC8] hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Đóng thông báo"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="h-1.5 w-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-emerald-400 to-amber-400 transition-none"
+              style={{ width: `${toastProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <Link
           href="/orders"

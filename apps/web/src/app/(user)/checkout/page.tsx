@@ -126,7 +126,7 @@ export default function CheckoutPage() {
 
       clearCart();
       await refreshProfile();
-      router.push(`/orders/${result.order.id}`);
+      router.push(`/orders/${result.order.id}?paid=1`);
     } catch (err) {
       setPaymentError(
         err instanceof Error
